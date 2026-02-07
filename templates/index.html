@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="min-h-screen flex items-center justify-center p-4" x-data="welcomeWindow()" x-init="init()">
+    <div class="max-w-2xl w-full">
+        <div class="text-center mb-8">
+            <h1 class="text-5xl font-bold text-gray-900 mb-2">The Welcome Window</h1>
+            <p class="text-xl text-gray-600">Drop by for a chat when the light is on</p>
+        </div>
+        <div class="bg-white rounded-2xl shadow-xl p-8 mb-6">
+            <div class="flex items-center justify-center mb-6">
+                <div class="relative">
+                    <div class="w-32 h-32 rounded-full flex items-center justify-center"
+                         :class="{'bg-green-100': status === 'available','bg-red-100': status === 'away','bg-yellow-100': status === 'busy'}">
+                        <div class="w-24 h-24 rounded-full"
+                             :class="{'bg-green-500 pulse-glow': status === 'available','bg-red-500': status === 'away','bg-yellow-500': status === 'busy'}"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="text-center mb-6">
+                <h2 class="text-3xl font-bold mb-2" :class="{'text-green-600': status === 'available','text-red-600': status === 'away','text-yellow-600': status === 'busy'}">
+                    <span x-show="status === 'available'">✨ Available Now</span>
+                    <span x-show="status === 'away'">💤 Not Available</span>
+                    <span x-show="status === 'busy'">⏰ Busy Right Now</span>
+                </h2>
+                <p class="text-lg text-gray-600" x-text="message"></p>
+            </div>
+            <div class="flex flex-col gap-3">
+                <template x-if="status === 'available'">
+                    <div x-data="{ showNameInput: false, name: '' }">
+                        <div x-show="!showNameInput">
+                            <button @click="showNameInput = true" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl transition-colors text-lg">
+                                🚪 Come In and Say Hello
+                            </button>
+                        </div>
+                        <div x-show="showNameInput" x-cloak class="space-y-3">
+                            <input type="text" x-model="name" placeholder="Your name (optional)" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none" @keyup.enter="enterRoom(name)">
+                            <div class="flex gap-2">
+                                <button @click="enterRoom(name)" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Enter</button>
+                                <button @click="showNameInput = false" class="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="status !== 'available'">
+                    <button @click="showGuestbook = true" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl transition-colors text-lg">💌 Leave a Message</button>
+                </template>
+            </div>
+        </div>
+        <div class="text-center text-gray-500 text-sm">
+            <p>This is a personal space for connecting with Diane.</p>
+            <p class="mt-1">When available, you can chat, video call, and play simple games together.</p>
+        </div>
+    </div>
+    <div x-show="showGuestbook" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" @click.self="showGuestbook = false">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full">
+            <h3 class="text-2xl font-bold mb-4">Leave a Message</h3>
+            <form @submit.prevent="submitMessage()">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Your Name (optional)</label>
+                    <input type="text" x-model="guestbookName" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none" placeholder="Anonymous">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Message</label>
+                    <textarea x-model="guestbookMessage" rows="4" required class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none" placeholder="Drop by when you get a chance..."></textarea>
+                </div>
+                <div class="flex gap-3">
+                    <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Send Message</button>
+                    <button type="button" @click="showGuestbook = false" class="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                </div>
+            </form>
+            <div x-show="messageSent" x-cloak class="mt-4 p-3 bg-green-100 text-green-700 rounded-lg">✓ Message sent! Diane will see it soon.</div>
+        </div>
+    </div>
+</div>
+<script>
+function welcomeWindow() {
+    return {
+        status: '{{ status.status }}',
+        message: '{{ status.message }}',
+        showGuestbook: false,
+        guestbookName: '',
+        guestbookMessage: '',
+        messageSent: false,
+        socket: null,
+        init() {
+            this.socket = io();
+            this.socket.on('status_changed', (data) => {
+                this.status = data.status;
+                this.message = data.message;
+            });
+        },
+        enterRoom(name) {
+            const roomName = name || 'Anonymous';
+            window.location.href = `/choose?name=${encodeURIComponent(roomName)}`;
+        },
+        async submitMessage() {
+            try {
+                const response = await fetch('/guestbook', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name: this.guestbookName || 'Anonymous', message: this.guestbookMessage})
+                });
+                if (response.ok) {
+                    this.messageSent = true;
+                    this.guestbookMessage = '';
+                    setTimeout(() => { this.showGuestbook = false; this.messageSent = false; }, 2000);
+                }
+            } catch (error) { console.error('Error sending message:', error); }
+        }
+    }
+}
+</script>
+{% endblock %}

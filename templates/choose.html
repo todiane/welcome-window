@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block body %}
+<div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div class="max-w-2xl w-full">
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 mb-2">Welcome, {{ visitor_name }}!</h1>
+            <p class="text-lg text-gray-600">How would you like to connect?</p>
+        </div>
+        <div class="grid md:grid-cols-2 gap-6">
+            <a href="/room/chat" class="bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all transform hover:scale-105 group">
+                <div class="text-center">
+                    <div class="text-6xl mb-4 group-hover:scale-110 transition-transform">💬</div>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-3">Chat & Games</h2>
+                    <p class="text-gray-600 mb-4">Text chat and play games together</p>
+                    <ul class="text-left text-sm text-gray-500 space-y-2">
+                        <li>✓ Text chat</li>
+                        <li>✓ Word Search puzzles</li>
+                        <li>✓ Sudoku</li>
+                        <li>✓ Simple & relaxed</li>
+                    </ul>
+                </div>
+            </a>
+            <a href="/room/video" class="bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all transform hover:scale-105 group">
+                <div class="text-center">
+                    <div class="text-6xl mb-4 group-hover:scale-110 transition-transform">📹</div>
+                    <h2 class="text-2xl font-bold text-gray-900 mb-3">Video Chat</h2>
+                    <p class="text-gray-600 mb-4">Video call with chat and games</p>
+                    <ul class="text-left text-sm text-gray-500 space-y-2">
+                        <li>✓ Video & audio</li>
+                        <li>✓ Text chat</li>
+                        <li>✓ Games available</li>
+                        <li>✓ Screen sharing</li>
+                    </ul>
+                </div>
+            </a>
+        </div>
+        <div class="text-center mt-6">
+            <a href="/" class="text-sm text-gray-500 hover:text-gray-700">← Back to home</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
