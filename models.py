@@ -44,6 +44,19 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pending_visitors (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            approved BOOLEAN DEFAULT 0,
+            rejected BOOLEAN DEFAULT 0,
+            approved_at TIMESTAMP,
+            session_id TEXT UNIQUE
+        )
+    """)
+
     cursor.execute("SELECT COUNT(*) as count FROM availability")
     if cursor.fetchone()["count"] == 0:
         cursor.execute(
@@ -177,3 +190,62 @@ def get_visit_stats():
         "today_visits": today,
         "avg_duration_minutes": round(avg_duration / 60, 1) if avg_duration else 0,
     }
+
+
+# New functions for visitor approval system
+def create_pending_visitor(name, email, session_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO pending_visitors (name, email, session_id) VALUES (?, ?, ?)",
+        (name, email, session_id),
+    )
+    visitor_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return visitor_id
+
+
+def get_pending_visitors():
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM pending_visitors WHERE approved = 0 AND rejected = 0 ORDER BY requested_at DESC"
+    )
+    visitors = cursor.fetchall()
+    conn.close()
+    return [dict(v) for v in visitors]
+
+
+def approve_visitor(visitor_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE pending_visitors SET approved = 1, approved_at = CURRENT_TIMESTAMP WHERE id = ?",
+        (visitor_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def reject_visitor(visitor_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE pending_visitors SET rejected = 1 WHERE id = ?",
+        (visitor_id,),
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_visitor_by_session(session_id):
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM pending_visitors WHERE session_id = ?",
+        (session_id,),
+    )
+    result = cursor.fetchone()
+    conn.close()
+    return dict(result) if result else None

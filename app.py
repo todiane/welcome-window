@@ -5,11 +5,12 @@ import os
 from functools import wraps
 from config import Config
 import models
+from games import sudoku_generator
+from games import wordsearch_generator
 
 app = Flask(__name__)
 app.config.from_object(Config)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
-
 
 models.init_db()
 
@@ -32,13 +33,81 @@ def index():
     return render_template("index.html", status=status)
 
 
+@app.route("/request-access", methods=["POST"])
+def request_access():
+    """Visitor requests access with name and email"""
+    data = request.get_json()
+    name = data.get("name", "").strip()
+    email = data.get("email", "").strip()
+
+    if not name or not email:
+        return jsonify({"error": "Name and email required"}), 400
+
+    if "visitor_session" not in session:
+        session["visitor_session"] = os.urandom(16).hex()
+
+    visitor_id = models.create_pending_visitor(name, email, session["visitor_session"])
+    session["visitor_name"] = name
+    session["visitor_email"] = email
+
+    # Notify admin in real-time
+    socketio.emit(
+        "new_visitor_request",
+        {
+            "id": visitor_id,
+            "name": name,
+            "email": email,
+            "requested_at": datetime.now().isoformat(),
+        },
+        room="admin",
+    )
+
+    return jsonify({"success": True, "session_id": session["visitor_session"]})
+
+
+@app.route("/check-approval")
+def check_approval():
+    """Check if visitor has been approved"""
+    session_id = session.get("visitor_session")
+    if not session_id:
+        return jsonify({"approved": False, "rejected": False})
+
+    visitor = models.get_visitor_by_session(session_id)
+    if not visitor:
+        return jsonify({"approved": False, "rejected": False})
+
+    return jsonify(
+        {"approved": bool(visitor["approved"]), "rejected": bool(visitor["rejected"])}
+    )
+
+
+@app.route("/waiting-room")
+def waiting_room():
+    """Waiting room for visitors pending approval"""
+    status = models.get_current_status()
+    if status["status"] != "available":
+        return redirect(url_for("index"))
+
+    visitor_name = session.get("visitor_name", "Anonymous")
+    return render_template("waiting_room.html", visitor_name=visitor_name)
+
+
 @app.route("/choose")
 def choose_connection():
     status = models.get_current_status()
     if status["status"] != "available":
         return redirect(url_for("index"))
-    visitor_name = request.args.get("name", "Anonymous")
-    session["visitor_name"] = visitor_name
+
+    # Check if visitor is approved
+    session_id = session.get("visitor_session")
+    if session_id:
+        visitor = models.get_visitor_by_session(session_id)
+        if not visitor or not visitor["approved"]:
+            return redirect(url_for("waiting_room"))
+    else:
+        return redirect(url_for("index"))
+
+    visitor_name = session.get("visitor_name", "Anonymous")
     return render_template("choose.html", visitor_name=visitor_name)
 
 
@@ -47,6 +116,16 @@ def chat_room():
     status = models.get_current_status()
     if status["status"] != "available":
         return redirect(url_for("index"))
+
+    # Check approval
+    session_id = session.get("visitor_session")
+    if session_id:
+        visitor = models.get_visitor_by_session(session_id)
+        if not visitor or not visitor["approved"]:
+            return redirect(url_for("waiting_room"))
+    else:
+        return redirect(url_for("index"))
+
     if "visitor_id" not in session:
         session["visitor_id"] = os.urandom(16).hex()
     visitor_name = session.get("visitor_name", "Anonymous")
@@ -58,6 +137,16 @@ def video_room():
     status = models.get_current_status()
     if status["status"] != "available":
         return redirect(url_for("index"))
+
+    # Check approval
+    session_id = session.get("visitor_session")
+    if session_id:
+        visitor = models.get_visitor_by_session(session_id)
+        if not visitor or not visitor["approved"]:
+            return redirect(url_for("waiting_room"))
+    else:
+        return redirect(url_for("index"))
+
     if "visitor_id" not in session:
         session["visitor_id"] = os.urandom(16).hex()
     visitor_name = session.get("visitor_name", "Anonymous")
@@ -73,6 +162,23 @@ def api_status():
     return jsonify(status)
 
 
+@app.route("/api/game/wordsearch")
+def api_wordsearch():
+    """Generate a new word search puzzle"""
+    theme = request.args.get("theme", "general")
+    size = int(request.args.get("size", 12))
+    puzzle = wordsearch_generator.generate_wordsearch(theme, size)
+    return jsonify(puzzle)
+
+
+@app.route("/api/game/sudoku")
+def api_sudoku():
+    """Generate a new sudoku puzzle"""
+    difficulty = request.args.get("difficulty", "medium")
+    puzzle = sudoku_generator.generate_sudoku(difficulty)
+    return jsonify(puzzle)
+
+
 @app.route("/guestbook", methods=["POST"])
 def add_guestbook_message():
     data = request.get_json()
@@ -81,6 +187,14 @@ def add_guestbook_message():
     if not message or len(message) > app.config["MAX_MESSAGE_LENGTH"]:
         return jsonify({"error": "Invalid message"}), 400
     models.add_message(visitor_name, message)
+
+    # Notify admin
+    socketio.emit(
+        "new_guestbook_message",
+        {"name": visitor_name, "message": message},
+        room="admin",
+    )
+
     return jsonify({"success": True})
 
 
@@ -115,6 +229,7 @@ def admin_dashboard():
     unread_count = models.get_unread_count()
     visits = models.get_recent_visits(limit=10)
     stats = models.get_visit_stats()
+    pending = models.get_pending_visitors()
     return render_template(
         "admin/dashboard.html",
         status=status,
@@ -123,6 +238,7 @@ def admin_dashboard():
         visits=visits,
         stats=stats,
         active_count=len(active_connections),
+        pending_visitors=pending,
     )
 
 
@@ -136,6 +252,22 @@ def update_status():
     socketio.emit(
         "status_changed", {"status": status, "message": message}, namespace="/"
     )
+    return jsonify({"success": True})
+
+
+@app.route("/admin/visitor/<int:visitor_id>/approve", methods=["POST"])
+@admin_required
+def approve_visitor(visitor_id):
+    models.approve_visitor(visitor_id)
+    socketio.emit("approval_granted", {"visitor_id": visitor_id}, namespace="/")
+    return jsonify({"success": True})
+
+
+@app.route("/admin/visitor/<int:visitor_id>/reject", methods=["POST"])
+@admin_required
+def reject_visitor(visitor_id):
+    models.reject_visitor(visitor_id)
+    socketio.emit("approval_rejected", {"visitor_id": visitor_id}, namespace="/")
     return jsonify({"success": True})
 
 
@@ -195,18 +327,57 @@ def handle_admin_join():
 def handle_message(data):
     message = data.get("message", "").strip()
     sender = data.get("sender", "visitor")
+    visitor_id = data.get("visitor_id")  # For targeting specific visitor
+
     if not message:
         return
+
     visitor_name = session.get("visitor_name", "Anonymous")
-    socketio.emit(
-        "new_message",
-        {
+
+    if sender == "admin":
+        # Admin sending to specific visitor or broadcast
+        if visitor_id:
+            # Send to specific visitor
+            for sid, conn in active_connections.items():
+                if conn["visitor_id"] == visitor_id:
+                    socketio.emit(
+                        "new_message",
+                        {
+                            "message": message,
+                            "sender": "admin",
+                            "sender_name": "Diane",
+                            "timestamp": datetime.now().isoformat(),
+                        },
+                        room=sid,
+                    )
+                    break
+        else:
+            # Broadcast to all
+            socketio.emit(
+                "new_message",
+                {
+                    "message": message,
+                    "sender": "admin",
+                    "sender_name": "Diane",
+                    "timestamp": datetime.now().isoformat(),
+                },
+            )
+    else:
+        # Visitor sending message
+        # Send to admin and back to visitor
+        msg_data = {
             "message": message,
             "sender": sender,
-            "sender_name": "Diane" if sender == "admin" else visitor_name,
+            "sender_name": visitor_name,
+            "visitor_id": session.get("visitor_id"),
             "timestamp": datetime.now().isoformat(),
-        },
-    )
+        }
+
+        # Echo back to sender
+        emit("new_message", msg_data)
+
+        # Send to admin
+        socketio.emit("new_message", msg_data, room="admin")
 
 
 @socketio.on("request_game")
@@ -219,4 +390,4 @@ def handle_game_request(data):
 
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=5000, debug=False)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=True)

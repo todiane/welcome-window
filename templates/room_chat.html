@@ -1,4 +1,8 @@
 {% extends "base.html" %}
+{% block extra_head %}
+<script src="/static/js/wordsearch.js"></script>
+<script src="/static/js/sudoku.js"></script>
+{% endblock %}
 {% block body %}
 <div class="min-h-screen bg-gray-900 text-white" x-data="chatRoom()" x-init="init()">
     <div class="bg-gray-800 px-6 py-4 border-b border-gray-700">
@@ -17,8 +21,8 @@
                 <h2 class="text-2xl font-bold mb-2">Welcome!</h2>
                 <p class="text-gray-400 mb-6">Start chatting or pick a game</p>
                 <div class="flex gap-4 justify-center">
-                    <button @click="currentGame='wordsearch'" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg">🔤 Word Search</button>
-                    <button @click="currentGame='sudoku'" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg">🔢 Sudoku</button>
+                    <button @click="loadGame('wordsearch')" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg">🔤 Word Search</button>
+                    <button @click="loadGame('sudoku')" class="px-6 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg">🔢 Sudoku</button>
                 </div>
             </div>
             <div x-show="currentGame" class="bg-gray-800 rounded-xl p-6">
@@ -26,7 +30,7 @@
                     <h2 class="text-xl font-bold" x-text="currentGame=='wordsearch'?'Word Search':'Sudoku'"></h2>
                     <button @click="currentGame=null" class="px-3 py-1 bg-gray-700 rounded-lg text-sm">Close</button>
                 </div>
-                <div id="game-container" class="text-white">Game loads here (placeholder for now)</div>
+                <div id="game-container" class="text-white"></div>
             </div>
         </div>
         <div class="lg:col-span-1">
@@ -75,6 +79,16 @@ function chatRoom(){
             if(!this.currentMessage.trim())return;
             this.socket.emit('send_message',{message:this.currentMessage,sender:'visitor'});
             this.currentMessage='';
+        },
+        loadGame(game) {
+            this.currentGame = game;
+            setTimeout(() => {
+                if (game === 'wordsearch') {
+                    window.initWordSearch('game-container');
+                } else if (game === 'sudoku') {
+                    window.initSudoku('game-container');
+                }
+            }, 100);
         }
     }
 }

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block body %}
-<div class="min-h-screen bg-gray-50" x-data="{status:'{{ status.status }}',statusMessage:'{{ status.message }}',activeCount:{{ active_count }}}" x-init="const s=io();s.emit('join_admin');s.on('visitor_joined',(d)=>activeCount=d.count);s.on('visitor_left',(d)=>activeCount=d.count)">
+<div class="min-h-screen bg-gray-50" x-data="adminDashboard()" x-init="init()">
     <div class="bg-white border-b px-6 py-4">
         <div class="max-w-7xl mx-auto flex justify-between items-center">
             <h1 class="text-2xl font-bold">Admin Dashboard</h1>
@@ -17,8 +17,8 @@
                 <div class="text-3xl font-bold" x-text="activeCount"></div>
             </div>
             <div class="bg-white rounded-xl p-6 shadow">
-                <div class="text-sm text-gray-500">Unread Messages</div>
-                <div class="text-3xl font-bold">{{ unread_count }}</div>
+                <div class="text-sm text-gray-500">Pending Approvals</div>
+                <div class="text-3xl font-bold text-orange-600" x-text="pendingCount"></div>
             </div>
             <div class="bg-white rounded-xl p-6 shadow">
                 <div class="text-sm text-gray-500">Total Visits</div>
@@ -29,19 +29,99 @@
                 <div class="text-3xl font-bold">{{ stats.avg_duration_minutes }}m</div>
             </div>
         </div>
+        
+        <!-- Pending Approvals Section -->
+        <div x-show="pendingCount > 0" class="bg-orange-50 border-2 border-orange-200 rounded-xl p-6 shadow mb-6">
+            <h2 class="text-xl font-bold mb-4 text-orange-800">🔔 Pending Access Requests</h2>
+            <div class="space-y-3">
+                <template x-for="visitor in pendingVisitors" :key="visitor.id">
+                    <div class="bg-white rounded-lg p-4 border-2 border-orange-300">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="font-bold text-lg" x-text="visitor.name"></div>
+                                <div class="text-sm text-gray-600" x-text="visitor.email"></div>
+                                <div class="text-xs text-gray-400 mt-1" x-text="'Requested ' + new Date(visitor.requested_at).toLocaleString()"></div>
+                            </div>
+                            <div class="flex gap-2">
+                                <button @click="approveVisitor(visitor.id)" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+                                    ✓ Approve
+                                </button>
+                                <button @click="rejectVisitor(visitor.id)" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium">
+                                    ✗ Reject
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
         <div class="bg-white rounded-xl p-6 shadow mb-6">
             <h2 class="text-xl font-bold mb-4">Availability Status</h2>
             <div class="flex gap-4 mb-4">
-                <button @click="status='available';statusMessage='Available for a chat!';fetch('/admin/status/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:status,message:statusMessage})})" :class="status==='available'?'bg-green-600 text-white':'bg-gray-200'" class="px-6 py-3 rounded-lg font-medium">Available</button>
-                <button @click="status='busy';statusMessage='Busy right now';fetch('/admin/status/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:status,message:statusMessage})})" :class="status==='busy'?'bg-yellow-600 text-white':'bg-gray-200'" class="px-6 py-3 rounded-lg font-medium">Busy</button>
-                <button @click="status='away';statusMessage='Not available';fetch('/admin/status/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:status,message:statusMessage})})" :class="status==='away'?'bg-red-600 text-white':'bg-gray-200'" class="px-6 py-3 rounded-lg font-medium">Away</button>
+                <button @click="updateStatus('available', 'Available for a chat!')" :class="status==='available'?'bg-green-600 text-white':'bg-gray-200'" class="px-6 py-3 rounded-lg font-medium">Available</button>
+                <button @click="updateStatus('busy', 'Busy right now')" :class="status==='busy'?'bg-yellow-600 text-white':'bg-gray-200'" class="px-6 py-3 rounded-lg font-medium">Busy</button>
+                <button @click="updateStatus('away', 'Not available')" :class="status==='away'?'bg-red-600 text-white':'bg-gray-200'" class="px-6 py-3 rounded-lg font-medium">Away</button>
             </div>
             <div>
-            <label class="block text-sm font-medium mb-2">Status Message</label>
-            <input type="text" x-model="statusMessage" @keyup.enter="fetch('/admin/status/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:status,message:statusMessage})})" class="w-full px-4 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none">
-            <button @click="fetch('/admin/status/update',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:status,message:statusMessage})})" class="mt-3 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">Save Status</button>
+                <label class="block text-sm font-medium mb-2">Status Message</label>
+                <input type="text" x-model="statusMessage" @keyup.enter="updateStatus(status, statusMessage)" class="w-full px-4 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none">
+                <button @click="updateStatus(status, statusMessage)" class="mt-3 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg">Save Status</button>
+            </div>
         </div>
+
+        <!-- Live Chat Interface -->
+        <div class="bg-white rounded-xl shadow mb-6">
+            <div class="border-b p-4">
+                <h2 class="text-xl font-bold">Live Chat</h2>
+                <p class="text-sm text-gray-500">Messages from active visitors</p>
+            </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3">
+                <!-- Chat window -->
+                <div class="lg:col-span-2 border-r">
+                    <div class="h-96 overflow-y-auto p-4 space-y-3 bg-gray-50" id="admin-messages">
+                        <template x-for="msg in chatMessages" :key="msg.timestamp">
+                            <div :class="msg.sender==='admin'?'text-right':'text-left'">
+                                <div class="inline-block max-w-[80%]">
+                                    <div class="text-xs mb-1" :class="msg.sender==='admin'?'text-blue-600':'text-gray-600'" x-text="msg.sender_name + (msg.visitor_id ? ' (' + msg.visitor_id.slice(0,8) + ')' : '')"></div>
+                                    <div class="px-4 py-2 rounded-lg break-words" :class="msg.sender==='admin'?'bg-blue-600 text-white':'bg-white border-2'" x-text="msg.message"></div>
+                                    <div class="text-xs text-gray-400 mt-1" x-text="new Date(msg.timestamp).toLocaleTimeString()"></div>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="chatMessages.length === 0" class="text-center text-gray-400 py-12">
+                            No messages yet. Waiting for visitors to connect...
+                        </div>
+                    </div>
+                    <div class="p-4 border-t bg-white">
+                        <form @submit.prevent="sendAdminMessage()">
+                            <div class="flex gap-2">
+                                <input type="text" x-model="adminMessage" placeholder="Type a message to all visitors..." class="flex-1 px-4 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none">
+                                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Send</button>
+                            </div>
+                        </form>
+                        <div class="text-xs text-gray-500 mt-2">Tip: Messages are broadcast to all connected visitors</div>
+                    </div>
+                </div>
+                
+                <!-- Active visitors sidebar -->
+                <div class="p-4">
+                    <h3 class="font-bold mb-3">Active Visitors</h3>
+                    <div class="space-y-2">
+                        <template x-for="(conn, sid) in activeConnections" :key="sid">
+                            <div class="p-3 bg-gray-50 rounded-lg">
+                                <div class="font-medium text-sm" x-text="conn.visitor_name"></div>
+                                <div class="text-xs text-gray-500" x-text="'Connected ' + new Date(conn.connected_at).toLocaleTimeString()"></div>
+                            </div>
+                        </template>
+                        <div x-show="Object.keys(activeConnections).length === 0" class="text-center text-gray-400 py-4 text-sm">
+                            No active visitors
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
+
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div class="bg-white rounded-xl p-6 shadow">
                 <h2 class="text-xl font-bold mb-4">Guest Book</h2>
@@ -83,4 +163,102 @@
         </div>
     </div>
 </div>
+<script>
+function adminDashboard() {
+    return {
+        status: '{{ status.status }}',
+        statusMessage: '{{ status.message }}',
+        activeCount: {{ active_count }},
+        pendingCount: {{ pending_visitors|length }},
+        pendingVisitors: {{ pending_visitors|tojson }},
+        chatMessages: [],
+        adminMessage: '',
+        activeConnections: {},
+        socket: null,
+        init() {
+            this.socket = io();
+            this.socket.emit('join_admin');
+            
+            this.socket.on('visitor_joined', (data) => {
+                this.activeCount = data.count;
+            });
+            
+            this.socket.on('visitor_left', (data) => {
+                this.activeCount = data.count;
+            });
+            
+            this.socket.on('new_message', (data) => {
+                this.chatMessages.push(data);
+                setTimeout(() => {
+                    const container = document.getElementById('admin-messages');
+                    container.scrollTop = container.scrollHeight;
+                }, 100);
+            });
+            
+            this.socket.on('new_visitor_request', (data) => {
+                this.pendingVisitors.push(data);
+                this.pendingCount++;
+                // Show notification
+                if (Notification.permission === 'granted') {
+                    new Notification('New Visitor Request', {
+                        body: `${data.name} (${data.email}) is requesting access`,
+                        icon: '/static/icon.png'
+                    });
+                }
+            });
+
+            this.socket.on('new_guestbook_message', (data) => {
+                if (Notification.permission === 'granted') {
+                    new Notification('New Guestbook Message', {
+                        body: `${data.name}: ${data.message}`,
+                    });
+                }
+            });
+            
+            // Request notification permission
+            if (Notification.permission === 'default') {
+                Notification.requestPermission();
+            }
+        },
+        updateStatus(status, message) {
+            this.status = status;
+            this.statusMessage = message;
+            fetch('/admin/status/update', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({status, message})
+            });
+        },
+        sendAdminMessage() {
+            if (!this.adminMessage.trim()) return;
+            
+            this.socket.emit('send_message', {
+                message: this.adminMessage,
+                sender: 'admin'
+            });
+            
+            this.adminMessage = '';
+        },
+        async approveVisitor(visitorId) {
+            try {
+                await fetch(`/admin/visitor/${visitorId}/approve`, {method: 'POST'});
+                this.pendingVisitors = this.pendingVisitors.filter(v => v.id !== visitorId);
+                this.pendingCount--;
+            } catch (error) {
+                console.error('Error approving visitor:', error);
+            }
+        },
+        async rejectVisitor(visitorId) {
+            if (!confirm('Reject this visitor?')) return;
+            try {
+                await fetch(`/admin/visitor/${visitorId}/reject`, {method: 'POST'});
+                this.pendingVisitors = this.pendingVisitors.filter(v => v.id !== visitorId);
+                this.pendingCount--;
+            } catch (error) {
+                console.error('Error rejecting visitor:', error);
+            }
+        }
+    }
+}
+</script>
 {% endblock %}

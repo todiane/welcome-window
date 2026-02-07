@@ -26,17 +26,19 @@
             </div>
             <div class="flex flex-col gap-3">
                 <template x-if="status === 'available'">
-                    <div x-data="{ showNameInput: false, name: '' }">
-                        <div x-show="!showNameInput">
-                            <button @click="showNameInput = true" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl transition-colors text-lg">
-                                🚪 Come In and Say Hello
+                    <div x-data="{ showForm: false, name: '', email: '', submitting: false, error: '' }">
+                        <div x-show="!showForm">
+                            <button @click="showForm = true" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-xl transition-colors text-lg">
+                                🚪 Request Access
                             </button>
                         </div>
-                        <div x-show="showNameInput" x-cloak class="space-y-3">
-                            <input type="text" x-model="name" placeholder="Your name (optional)" class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none" @keyup.enter="enterRoom(name)">
+                        <div x-show="showForm" x-cloak class="space-y-3">
+                            <input type="text" x-model="name" placeholder="Your name *" required class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none">
+                            <input type="email" x-model="email" placeholder="Your email *" required class="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-green-500 focus:outline-none">
+                            <div x-show="error" x-text="error" class="text-red-600 text-sm"></div>
                             <div class="flex gap-2">
-                                <button @click="enterRoom(name)" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Enter</button>
-                                <button @click="showNameInput = false" class="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+                                <button @click="requestAccess(name, email, $dispatch)" :disabled="submitting || !name || !email" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors disabled:opacity-50" x-text="submitting ? 'Requesting...' : 'Request Access'"></button>
+                                <button @click="showForm = false; error = ''" class="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
                             </div>
                         </div>
                     </div>
@@ -89,9 +91,30 @@ function welcomeWindow() {
                 this.message = data.message;
             });
         },
-        enterRoom(name) {
-            const roomName = name || 'Anonymous';
-            window.location.href = `/choose?name=${encodeURIComponent(roomName)}`;
+        async requestAccess(name, email, dispatch) {
+            if (!name || !email) {
+                alert('Please enter your name and email');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/request-access', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({name, email})
+                });
+                
+                if (response.ok) {
+                    // Redirect to waiting room
+                    window.location.href = '/waiting-room';
+                } else {
+                    const data = await response.json();
+                    alert(data.error || 'Failed to submit request');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Failed to submit request');
+            }
         },
         async submitMessage() {
             try {
