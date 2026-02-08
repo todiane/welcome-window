@@ -5,8 +5,10 @@ DATABASE = "welcome_window.db"
 
 
 def get_db():
-    conn = sqlite3.connect(DATABASE)
+    conn = sqlite3.connect(DATABASE, timeout=10)
     conn.row_factory = sqlite3.Row
+    # Enable WAL mode for better concurrent access
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 
@@ -54,6 +56,17 @@ def init_db():
             rejected BOOLEAN DEFAULT 0,
             approved_at TIMESTAMP,
             session_id TEXT UNIQUE
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sender TEXT NOT NULL,
+            sender_name TEXT NOT NULL,
+            message TEXT NOT NULL,
+            visitor_id TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
 
@@ -249,3 +262,52 @@ def get_visitor_by_session(session_id):
     result = cursor.fetchone()
     conn.close()
     return dict(result) if result else None
+
+
+# Chat message persistence functions
+def save_chat_message(sender, sender_name, message, visitor_id=None):
+    """Save a chat message to database"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """INSERT INTO chat_messages (sender, sender_name, message, visitor_id) 
+           VALUES (?, ?, ?, ?)""",
+        (sender, sender_name, message, visitor_id),
+    )
+    message_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return message_id
+
+
+def get_chat_messages(limit=100):
+    """Get recent chat messages"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute(
+        """SELECT * FROM chat_messages 
+           ORDER BY created_at ASC 
+           LIMIT ?""",
+        (limit,),
+    )
+    messages = cursor.fetchall()
+    conn.close()
+    return [dict(msg) for msg in messages]
+
+
+def delete_chat_message(message_id):
+    """Delete a specific chat message"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM chat_messages WHERE id = ?", (message_id,))
+    conn.commit()
+    conn.close()
+
+
+def clear_all_chat_messages():
+    """Clear all chat messages"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM chat_messages")
+    conn.commit()
+    conn.close()

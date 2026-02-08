@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify
-from flask_socketio import SocketIO, emit, join_room
+from flask_socketio import SocketIO, emit
 from datetime import datetime
 import os
 from functools import wraps
@@ -14,6 +14,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
 
 models.init_db()
 
+# Track active connections with their socket IDs
 active_connections = {}
 
 
@@ -43,8 +44,17 @@ def request_access():
     if not name or not email:
         return jsonify({"error": "Name and email required"}), 400
 
-    if "visitor_session" not in session:
-        session["visitor_session"] = os.urandom(16).hex()
+    # Check if visitor already has a pending request
+    if "visitor_session" in session:
+        existing = models.get_visitor_by_session(session["visitor_session"])
+        if existing and not existing["approved"] and not existing["rejected"]:
+            # Already pending, just update name/email and redirect
+            session["visitor_name"] = name
+            session["visitor_email"] = email
+            return jsonify({"success": True, "session_id": session["visitor_session"]})
+
+    # Create new session
+    session["visitor_session"] = os.urandom(16).hex()
 
     visitor_id = models.create_pending_visitor(name, email, session["visitor_session"])
     session["visitor_name"] = name
@@ -271,6 +281,20 @@ def reject_visitor(visitor_id):
     return jsonify({"success": True})
 
 
+@app.route("/admin/visitor/<visitor_id>/disconnect", methods=["POST"])
+@admin_required
+def disconnect_visitor(visitor_id):
+    """Disconnect a specific visitor"""
+    for sid, conn in list(active_connections.items()):
+        if conn["visitor_id"] == visitor_id:
+            socketio.emit(
+                "force_disconnect", {"reason": "Disconnected by admin"}, room=sid
+            )
+            # The actual disconnect will be handled by the client
+            return jsonify({"success": True})
+    return jsonify({"error": "Visitor not found"}), 404
+
+
 @app.route("/admin/messages/<int:message_id>/read", methods=["POST"])
 @admin_required
 def mark_read(message_id):
@@ -278,26 +302,64 @@ def mark_read(message_id):
     return jsonify({"success": True})
 
 
+@app.route("/admin/chat/message/<int:message_id>/delete", methods=["POST"])
+@admin_required
+def delete_chat_message(message_id):
+    """Delete a specific chat message"""
+    models.delete_chat_message(message_id)
+    socketio.emit("message_deleted", {"message_id": message_id}, room="admin")
+    socketio.emit("message_deleted", {"message_id": message_id}, broadcast=True)
+    return jsonify({"success": True})
+
+
+@app.route("/admin/chat/clear", methods=["POST"])
+@admin_required
+def clear_chat_history():
+    """Clear all chat messages"""
+    models.clear_all_chat_messages()
+    socketio.emit("chat_cleared", {}, room="admin")
+    socketio.emit("chat_cleared", {}, broadcast=True)
+    return jsonify({"success": True})
+
+
 @socketio.on("connect")
-def handle_connect():
+def handle_connect(auth=None):
     visitor_id = session.get("visitor_id", "unknown")
     visitor_name = session.get("visitor_name", "Anonymous")
+
+    # Store connection info
     active_connections[request.sid] = {
         "visitor_id": visitor_id,
         "visitor_name": visitor_name,
         "connected_at": datetime.now().isoformat(),
+        "sid": request.sid,
     }
+
     if app.config["LOG_VISITS"]:
         visit_id = models.log_visit(visitor_name, "chat")
         active_connections[request.sid]["visit_id"] = visit_id
+
+    # Notify admin room about new visitor
     socketio.emit(
         "visitor_joined",
-        {"visitor_name": visitor_name, "count": len(active_connections)},
+        {
+            "sid": request.sid,
+            "visitor_name": visitor_name,
+            "visitor_id": visitor_id,
+            "count": len(active_connections),
+            "connected_at": datetime.now().isoformat(),
+        },
         room="admin",
     )
+
+    # Send connection confirmation WITHOUT chat history
+    # Chat history should NOT be shared between visitors
     emit(
         "connection_established",
-        {"message": "Connected to The Welcome Window", "visitor_name": visitor_name},
+        {
+            "message": "Connected to The Welcome Window",
+            "visitor_name": visitor_name,
+        },
     )
 
 
@@ -308,75 +370,70 @@ def handle_disconnect():
         if "visit_id" in connection and app.config["LOG_VISITS"]:
             models.end_visit(connection["visit_id"])
         visitor_name = connection["visitor_name"]
+        visitor_id = connection["visitor_id"]
+
+        # Remove from active_connections
         del active_connections[request.sid]
+
+        # Notify admin room with socket ID to remove
         socketio.emit(
             "visitor_left",
-            {"visitor_name": visitor_name, "count": len(active_connections)},
+            {
+                "visitor_name": visitor_name,
+                "visitor_id": visitor_id,
+                "sid": request.sid,
+                "count": len(active_connections),
+            },
             room="admin",
         )
-
-
-@socketio.on("join_admin")
-def handle_admin_join():
-    if session.get("admin_logged_in"):
-        join_room("admin")
-        emit("admin_joined", {"status": "success"})
 
 
 @socketio.on("send_message")
 def handle_message(data):
     message = data.get("message", "").strip()
     sender = data.get("sender", "visitor")
-    visitor_id = data.get("visitor_id")  # For targeting specific visitor
 
     if not message:
         return
 
     visitor_name = session.get("visitor_name", "Anonymous")
+    visitor_id = session.get("visitor_id")
+    timestamp = datetime.now().isoformat()
 
     if sender == "admin":
-        # Admin sending to specific visitor or broadcast
-        if visitor_id:
-            # Send to specific visitor
-            for sid, conn in active_connections.items():
-                if conn["visitor_id"] == visitor_id:
-                    socketio.emit(
-                        "new_message",
-                        {
-                            "message": message,
-                            "sender": "admin",
-                            "sender_name": "Diane",
-                            "timestamp": datetime.now().isoformat(),
-                        },
-                        room=sid,
-                    )
-                    break
-        else:
-            # Broadcast to all
-            socketio.emit(
-                "new_message",
-                {
-                    "message": message,
-                    "sender": "admin",
-                    "sender_name": "Diane",
-                    "timestamp": datetime.now().isoformat(),
-                },
-            )
-    else:
-        # Visitor sending message
-        # Send to admin and back to visitor
+        # Admin sending message - broadcast to all visitors
         msg_data = {
             "message": message,
-            "sender": sender,
-            "sender_name": visitor_name,
-            "visitor_id": session.get("visitor_id"),
-            "timestamp": datetime.now().isoformat(),
+            "sender": "admin",
+            "sender_name": "Diane",
+            "timestamp": timestamp,
         }
 
-        # Echo back to sender
+        # Save to database
+        msg_id = models.save_chat_message("admin", "Diane", message)
+        msg_data["id"] = msg_id
+
+        # Send to ALL connected sockets (including admin)
+        socketio.emit("new_message", msg_data, namespace="/")
+
+    else:
+        # Visitor sending message
+        msg_data = {
+            "message": message,
+            "sender": "visitor",
+            "sender_name": visitor_name,
+            "visitor_id": visitor_id,
+            "timestamp": timestamp,
+        }
+
+        # Save to database
+        msg_id = models.save_chat_message("visitor", visitor_name, message, visitor_id)
+        msg_data["id"] = msg_id
+
+        # Echo back to sender immediately
         emit("new_message", msg_data)
 
-        # Send to admin
+        # Send to admin room
         socketio.emit("new_message", msg_data, room="admin")
 
 
@@ -390,4 +447,4 @@ def handle_game_request(data):
 
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+    socketio.run(app, host="0.0.0.0", port=5000, debug=False)

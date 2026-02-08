@@ -11,7 +11,7 @@
                 <h1 class="text-2xl font-bold">The Welcome Window</h1>
                 <p class="text-sm text-gray-400">Connected as {{ visitor_name }}</p>
             </div>
-            <button @click="if(confirm('Leave?')){window.location.href='/'}" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg">Exit</button>
+            <button @click="if(confirm('Leave the chat?')){window.location.href='/'}" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg">Exit</button>
         </div>
     </div>
     <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -35,22 +35,42 @@
         </div>
         <div class="lg:col-span-1">
             <div class="bg-gray-800 rounded-xl flex flex-col h-[600px]">
-                <div class="p-4 border-b border-gray-700"><h2 class="font-bold text-lg">Chat</h2></div>
+                <div class="p-4 border-b border-gray-700">
+                    <h2 class="font-bold text-lg">Chat</h2>
+                    <p class="text-xs text-gray-400" x-show="connected">✓ Connected</p>
+                    <p class="text-xs text-red-400" x-show="!connected">○ Disconnected</p>
+                </div>
                 <div class="flex-1 overflow-y-auto p-4 space-y-3" id="messages">
-                    <template x-for="msg in messages" :key="msg.timestamp">
+                    <template x-for="(msg, index) in messages" :key="msg.id || index">
                         <div :class="msg.sender==='admin'?'text-right':'text-left'">
                             <div class="inline-block max-w-[80%]">
                                 <div class="text-xs text-gray-400 mb-1" x-text="msg.sender_name"></div>
-                                <div class="px-3 py-2 rounded-lg break-words" :class="msg.sender==='admin'?'bg-blue-600':'bg-gray-700'" x-text="msg.message"></div>
+                                <div class="px-3 py-2 rounded-lg break-words" :class="msg.sender==='admin'?'bg-blue-600 text-white':'bg-gray-700 text-white'" x-text="msg.message"></div>
+                                <div class="text-xs text-gray-500 mt-1" x-text="msg.created_at ? new Date(msg.created_at).toLocaleTimeString() : new Date(msg.timestamp).toLocaleTimeString()"></div>
                             </div>
                         </div>
                     </template>
+                    <div x-show="messages.length === 0" class="text-center text-gray-400 py-12">
+                        No messages yet. Say hello!
+                    </div>
                 </div>
                 <div class="p-4 border-t border-gray-700">
                     <form @submit.prevent="sendMessage()">
                         <div class="flex gap-2">
-                            <input type="text" x-model="currentMessage" placeholder="Type a message..." class="flex-1 px-4 py-2 bg-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <button type="submit" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg">Send</button>
+                            <input 
+                                type="text" 
+                                x-model="currentMessage" 
+                                placeholder="Type a message..." 
+                                class="flex-1 px-4 py-2 bg-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                :disabled="!connected"
+                            >
+                            <button 
+                                type="submit" 
+                                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                                :disabled="!currentMessage.trim() || !connected"
+                            >
+                                Send
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -60,26 +80,105 @@
 </div>
 <script>
 function chatRoom(){
-    return{
-        currentGame:null,
-        messages:[],
-        currentMessage:'',
-        socket:null,
-        init(){
-            this.socket=io();
-            this.socket.on('new_message',(d)=>{
-                this.messages.push(d);
-                setTimeout(()=>{
-                    const m=document.getElementById('messages');
-                    m.scrollTop=m.scrollHeight;
-                },100);
+    return {
+        currentGame: null,
+        messages: [],
+        currentMessage: '',
+        socket: null,
+        connected: false,
+        messageCounter: 0,
+        
+        init() {
+            console.log('Initializing chat room...');
+            
+            this.socket = io();
+            
+            this.socket.on('connect', () => {
+                console.log('Socket connected');
+                this.connected = true;
+            });
+            
+            this.socket.on('disconnect', () => {
+                console.log('Socket disconnected');
+                this.connected = false;
+            });
+            
+            this.socket.on('connection_established', (data) => {
+                console.log('Connection established:', data);
+                
+                // Load chat history
+                if (data.chat_history && data.chat_history.length > 0) {
+                    this.messages = data.chat_history.map((msg) => ({
+                        id: msg.id,
+                        message: msg.message,
+                        sender: msg.sender,
+                        sender_name: msg.sender_name,
+                        timestamp: msg.created_at,
+                        created_at: msg.created_at
+                    }));
+                    
+                    // Scroll to bottom
+                    this.$nextTick(() => {
+                        const container = document.getElementById('messages');
+                        if (container) {
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    });
+                }
+            });
+            
+            this.socket.on('new_message', (data) => {
+                console.log('New message received:', data);
+                
+                // Add message to array
+                this.messages.push({
+                    id: data.id || this.messageCounter++,
+                    message: data.message,
+                    sender: data.sender,
+                    sender_name: data.sender_name,
+                    timestamp: data.timestamp,
+                    created_at: data.timestamp
+                });
+                
+                // Scroll to bottom
+                this.$nextTick(() => {
+                    const container = document.getElementById('messages');
+                    if (container) {
+                        container.scrollTop = container.scrollHeight;
+                    }
+                });
+            });
+            
+            // Handle forced disconnect from admin
+            this.socket.on('force_disconnect', (data) => {
+                alert(data.reason || 'You have been disconnected by the admin');
+                window.location.href = '/';
+            });
+            
+            // Handle message deletion
+            this.socket.on('message_deleted', (data) => {
+                this.messages = this.messages.filter(msg => msg.id !== data.message_id);
+            });
+            
+            // Handle chat cleared
+            this.socket.on('chat_cleared', () => {
+                this.messages = [];
             });
         },
-        sendMessage(){
-            if(!this.currentMessage.trim())return;
-            this.socket.emit('send_message',{message:this.currentMessage,sender:'visitor'});
-            this.currentMessage='';
+        
+        sendMessage() {
+            if (!this.currentMessage.trim() || !this.connected) return;
+            
+            console.log('Sending message:', this.currentMessage);
+            
+            this.socket.emit('send_message', {
+                message: this.currentMessage,
+                sender: 'visitor'
+            });
+            
+            this.currentMessage = '';
         },
+        
         loadGame(game) {
             this.currentGame = game;
             setTimeout(() => {

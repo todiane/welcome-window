@@ -14,7 +14,7 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
             <div class="bg-white rounded-xl p-6 shadow">
                 <div class="text-sm text-gray-500">Active Visitors</div>
-                <div class="text-3xl font-bold" x-text="activeCount"></div>
+                <div class="text-3xl font-bold" x-text="Object.keys(activeConnections).length"></div>
             </div>
             <div class="bg-white rounded-xl p-6 shadow">
                 <div class="text-sm text-gray-500">Pending Approvals</div>
@@ -74,18 +74,31 @@
         <div class="bg-white rounded-xl shadow mb-6">
             <div class="border-b p-4">
                 <h2 class="text-xl font-bold">Live Chat</h2>
-                <p class="text-sm text-gray-500">Messages from active visitors</p>
+                <p class="text-sm text-gray-500">Real-time conversation with visitors</p>
             </div>
             <div class="grid grid-cols-1 lg:grid-cols-3">
                 <!-- Chat window -->
                 <div class="lg:col-span-2 border-r">
                     <div class="h-96 overflow-y-auto p-4 space-y-3 bg-gray-50" id="admin-messages">
-                        <template x-for="msg in chatMessages" :key="msg.timestamp">
-                            <div :class="msg.sender==='admin'?'text-right':'text-left'">
-                                <div class="inline-block max-w-[80%]">
-                                    <div class="text-xs mb-1" :class="msg.sender==='admin'?'text-blue-600':'text-gray-600'" x-text="msg.sender_name + (msg.visitor_id ? ' (' + msg.visitor_id.slice(0,8) + ')' : '')"></div>
-                                    <div class="px-4 py-2 rounded-lg break-words" :class="msg.sender==='admin'?'bg-blue-600 text-white':'bg-white border-2'" x-text="msg.message"></div>
-                                    <div class="text-xs text-gray-400 mt-1" x-text="new Date(msg.timestamp).toLocaleTimeString()"></div>
+                        <template x-for="msg in chatMessages" :key="msg.id || (msg.timestamp + msg.sender_name)">
+                            <div :class="msg.sender==='admin'?'text-right':'text-left'" class="group">
+                                <div class="inline-block max-w-[80%] relative">
+                                    <div class="text-xs mb-1" :class="msg.sender==='admin'?'text-blue-600':'text-gray-600'">
+                                        <span x-text="msg.sender_name"></span>
+                                        <span x-show="msg.visitor_id" x-text="' (' + msg.visitor_id.slice(0,8) + ')'"></span>
+                                    </div>
+                                    <div class="px-4 py-2 rounded-lg break-words relative" :class="msg.sender==='admin'?'bg-blue-600 text-white':'bg-white border-2'">
+                                        <span x-text="msg.message"></span>
+                                        <button 
+                                            @click="deleteMessage(msg.id)" 
+                                            x-show="msg.id"
+                                            class="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
+                                            title="Delete message"
+                                        >
+                                            ×
+                                        </button>
+                                    </div>
+                                    <div class="text-xs text-gray-400 mt-1" x-text="msg.created_at ? new Date(msg.created_at).toLocaleTimeString() : new Date(msg.timestamp).toLocaleTimeString()"></div>
                                 </div>
                             </div>
                         </template>
@@ -96,22 +109,57 @@
                     <div class="p-4 border-t bg-white">
                         <form @submit.prevent="sendAdminMessage()">
                             <div class="flex gap-2">
-                                <input type="text" x-model="adminMessage" placeholder="Type a message to all visitors..." class="flex-1 px-4 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none">
-                                <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">Send</button>
+                                <input 
+                                    type="text" 
+                                    x-model="adminMessage" 
+                                    placeholder="Type a message to all visitors..." 
+                                    class="flex-1 px-4 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none"
+                                    :disabled="Object.keys(activeConnections).length === 0"
+                                >
+                                <button 
+                                    type="submit" 
+                                    class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                                    :disabled="!adminMessage.trim() || Object.keys(activeConnections).length === 0"
+                                >
+                                    Send
+                                </button>
                             </div>
                         </form>
-                        <div class="text-xs text-gray-500 mt-2">Tip: Messages are broadcast to all connected visitors</div>
+                        <div class="flex justify-between items-center mt-2">
+                            <div class="text-xs text-gray-500">
+                                <span x-show="Object.keys(activeConnections).length > 0">Tip: Messages are broadcast to all <span x-text="Object.keys(activeConnections).length"></span> connected visitor(s)</span>
+                                <span x-show="Object.keys(activeConnections).length === 0" class="text-orange-500">No visitors connected</span>
+                            </div>
+                            <button 
+                                @click="clearChatHistory()" 
+                                class="text-xs px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                                x-show="chatMessages.length > 0"
+                            >
+                                Clear History
+                            </button>
+                        </div>
                     </div>
                 </div>
                 
                 <!-- Active visitors sidebar -->
                 <div class="p-4">
-                    <h3 class="font-bold mb-3">Active Visitors</h3>
+                    <h3 class="font-bold mb-3">Active Visitors (<span x-text="Object.keys(activeConnections).length"></span>)</h3>
                     <div class="space-y-2">
-                        <template x-for="(conn, sid) in activeConnections" :key="sid">
-                            <div class="p-3 bg-gray-50 rounded-lg">
-                                <div class="font-medium text-sm" x-text="conn.visitor_name"></div>
-                                <div class="text-xs text-gray-500" x-text="'Connected ' + new Date(conn.connected_at).toLocaleTimeString()"></div>
+                        <template x-for="[sid, conn] in Object.entries(activeConnections)" :key="sid">
+                            <div class="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                <div class="flex justify-between items-start mb-2">
+                                    <div class="flex-1">
+                                        <div class="font-medium text-sm" x-text="conn.visitor_name"></div>
+                                        <div class="text-xs text-gray-500" x-text="'ID: ' + conn.visitor_id.slice(0, 12)"></div>
+                                        <div class="text-xs text-gray-400 mt-1" x-text="'Connected ' + new Date(conn.connected_at).toLocaleTimeString()"></div>
+                                    </div>
+                                </div>
+                                <button 
+                                    @click="disconnectVisitor(conn.sid, conn.visitor_name)"
+                                    class="text-xs px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 w-full"
+                                >
+                                    Disconnect
+                                </button>
                             </div>
                         </template>
                         <div x-show="Object.keys(activeConnections).length === 0" class="text-center text-gray-400 py-4 text-sm">
@@ -168,37 +216,88 @@ function adminDashboard() {
     return {
         status: '{{ status.status }}',
         statusMessage: '{{ status.message }}',
-        activeCount: {{ active_count }},
         pendingCount: {{ pending_visitors|length }},
         pendingVisitors: {{ pending_visitors|tojson }},
         chatMessages: [],
         adminMessage: '',
         activeConnections: {},
         socket: null,
+        
         init() {
             this.socket = io();
             this.socket.emit('join_admin');
             
+            // Admin joined successfully
+            this.socket.on('admin_joined', (data) => {
+                console.log('Admin joined:', data);
+                
+                // Convert array to object keyed by sid
+                this.activeConnections = {};
+                if (data.active_connections) {
+                    data.active_connections.forEach(conn => {
+                        this.activeConnections[conn.sid] = {
+                            sid: conn.sid,
+                            visitor_id: conn.visitor_id,
+                            visitor_name: conn.visitor_name,
+                            connected_at: conn.connected_at
+                        };
+                    });
+                }
+                
+                // Load chat history
+                if (data.chat_history && data.chat_history.length > 0) {
+                    this.chatMessages = data.chat_history.map(msg => ({
+                        id: msg.id,
+                        message: msg.message,
+                        sender: msg.sender,
+                        sender_name: msg.sender_name,
+                        visitor_id: msg.visitor_id,
+                        timestamp: msg.created_at,
+                        created_at: msg.created_at
+                    }));
+                    
+                    this.$nextTick(() => {
+                        const container = document.getElementById('admin-messages');
+                        if (container) {
+                            container.scrollTop = container.scrollHeight;
+                        }
+                    });
+                }
+            });
+            
+            // New visitor joined
             this.socket.on('visitor_joined', (data) => {
-                this.activeCount = data.count;
+                console.log('Visitor joined:', data);
+                this.activeConnections[data.sid] = {
+                    sid: data.sid,
+                    visitor_id: data.visitor_id,
+                    visitor_name: data.visitor_name,
+                    connected_at: data.connected_at
+                };
             });
             
+            // Visitor left
             this.socket.on('visitor_left', (data) => {
-                this.activeCount = data.count;
+                console.log('Visitor left:', data);
+                delete this.activeConnections[data.sid];
             });
             
+            // New message received
             this.socket.on('new_message', (data) => {
+                console.log('New message received:', data);
                 this.chatMessages.push(data);
-                setTimeout(() => {
+                this.$nextTick(() => {
                     const container = document.getElementById('admin-messages');
-                    container.scrollTop = container.scrollHeight;
-                }, 100);
+                    if (container) {
+                        container.scrollTop = container.scrollHeight;
+                    }
+                });
             });
             
+            // New visitor request
             this.socket.on('new_visitor_request', (data) => {
                 this.pendingVisitors.push(data);
                 this.pendingCount++;
-                // Show notification
                 if (Notification.permission === 'granted') {
                     new Notification('New Visitor Request', {
                         body: `${data.name} (${data.email}) is requesting access`,
@@ -207,6 +306,7 @@ function adminDashboard() {
                 }
             });
 
+            // New guestbook message
             this.socket.on('new_guestbook_message', (data) => {
                 if (Notification.permission === 'granted') {
                     new Notification('New Guestbook Message', {
@@ -215,11 +315,22 @@ function adminDashboard() {
                 }
             });
             
+            // Handle message deletion
+            this.socket.on('message_deleted', (data) => {
+                this.chatMessages = this.chatMessages.filter(msg => msg.id !== data.message_id);
+            });
+            
+            // Handle chat cleared
+            this.socket.on('chat_cleared', () => {
+                this.chatMessages = [];
+            });
+            
             // Request notification permission
             if (Notification.permission === 'default') {
                 Notification.requestPermission();
             }
         },
+        
         updateStatus(status, message) {
             this.status = status;
             this.statusMessage = message;
@@ -229,8 +340,11 @@ function adminDashboard() {
                 body: JSON.stringify({status, message})
             });
         },
+        
         sendAdminMessage() {
             if (!this.adminMessage.trim()) return;
+            
+            console.log('Sending admin message:', this.adminMessage);
             
             this.socket.emit('send_message', {
                 message: this.adminMessage,
@@ -239,6 +353,7 @@ function adminDashboard() {
             
             this.adminMessage = '';
         },
+        
         async approveVisitor(visitorId) {
             try {
                 await fetch(`/admin/visitor/${visitorId}/approve`, {method: 'POST'});
@@ -248,6 +363,7 @@ function adminDashboard() {
                 console.error('Error approving visitor:', error);
             }
         },
+        
         async rejectVisitor(visitorId) {
             if (!confirm('Reject this visitor?')) return;
             try {
@@ -256,6 +372,64 @@ function adminDashboard() {
                 this.pendingCount--;
             } catch (error) {
                 console.error('Error rejecting visitor:', error);
+            }
+        },
+        
+        async disconnectVisitor(sid, visitorName) {
+            if (!confirm(`Disconnect ${visitorName}?`)) return;
+            
+            // Find the visitor_id by sid
+            const conn = this.activeConnections[sid];
+            if (!conn) return;
+            
+            try {
+                const response = await fetch(`/admin/visitor/${conn.visitor_id}/disconnect`, {
+                    method: 'POST'
+                });
+                if (response.ok) {
+                    // Remove immediately from UI
+                    delete this.activeConnections[sid];
+                    console.log('Visitor disconnected');
+                } else {
+                    alert('Failed to disconnect visitor');
+                }
+            } catch (error) {
+                console.error('Error disconnecting visitor:', error);
+                alert('Error disconnecting visitor');
+            }
+        },
+        
+        async deleteMessage(messageId) {
+            if (!messageId) return;
+            try {
+                const response = await fetch(`/admin/chat/message/${messageId}/delete`, {
+                    method: 'POST'
+                });
+                if (response.ok) {
+                    console.log('Message deleted');
+                } else {
+                    alert('Failed to delete message');
+                }
+            } catch (error) {
+                console.error('Error deleting message:', error);
+                alert('Error deleting message');
+            }
+        },
+        
+        async clearChatHistory() {
+            if (!confirm('Clear all chat history? This cannot be undone.')) return;
+            try {
+                const response = await fetch('/admin/chat/clear', {
+                    method: 'POST'
+                });
+                if (response.ok) {
+                    console.log('Chat history cleared');
+                } else {
+                    alert('Failed to clear chat history');
+                }
+            } catch (error) {
+                console.error('Error clearing chat:', error);
+                alert('Error clearing chat history');
             }
         }
     }
