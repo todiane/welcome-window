@@ -38,6 +38,15 @@ class WordSearch {
                     <div class="flex gap-2">
                         <select id="ws-theme" class="px-3 py-1 bg-gray-700 rounded text-sm">
                             <option value="general">General</option>
+                            <option value="animals">Animals</option>
+                            <option value="food">Food & Drinks</option>
+                            <option value="travel">Travel</option>
+                            <option value="tech">Technology</option>
+                            <option value="nature">Nature</option>
+                            <option value="music">Music</option>
+                            <option value="sports">Sports</option>
+                            <option value="movies">Movies</option>
+                            <option value="space">Space</option>
                             <option value="christmas">Christmas</option>
                         </select>
                         <button onclick="wordSearchGame.newGame()" class="px-4 py-1 bg-purple-600 rounded text-sm hover:bg-purple-700">New Game</button>
@@ -93,11 +102,11 @@ class WordSearch {
                 cell.textContent = letter;
                 cell.dataset.row = i;
                 cell.dataset.col = j;
-                
+
                 cell.addEventListener('mousedown', () => this.startSelection(i, j));
                 cell.addEventListener('mouseenter', () => this.continueSelection(i, j));
                 cell.addEventListener('mouseup', () => this.endSelection());
-                
+
                 gridContainer.appendChild(cell);
             });
         });
@@ -111,45 +120,45 @@ class WordSearch {
 
     startSelection(row, col) {
         this.isSelecting = true;
-        this.selectedCells = [{row, col}];
+        this.selectedCells = [{ row, col }];
         this.highlightSelection();
     }
 
     continueSelection(row, col) {
         if (!this.isSelecting) return;
-        
+
         const last = this.selectedCells[this.selectedCells.length - 1];
         if (last.row === row && last.col === col) return;
-        
+
         // Only allow straight lines
         if (this.selectedCells.length === 1) {
-            this.selectedCells.push({row, col});
+            this.selectedCells.push({ row, col });
         } else {
             const first = this.selectedCells[0];
             const dx = Math.sign(row - first.row);
             const dy = Math.sign(col - first.col);
-            
-            this.selectedCells = [{row: first.row, col: first.col}];
+
+            this.selectedCells = [{ row: first.row, col: first.col }];
             let r = first.row, c = first.col;
-            
+
             while (r !== row || c !== col) {
                 r += dx;
                 c += dy;
                 if (r < 0 || r >= this.size || c < 0 || c >= this.size) break;
-                this.selectedCells.push({row: r, col: c});
+                this.selectedCells.push({ row: r, col: c });
             }
         }
-        
+
         this.highlightSelection();
     }
 
     endSelection() {
         if (!this.isSelecting) return;
         this.isSelecting = false;
-        
-        const word = this.selectedCells.map(({row, col}) => this.grid[row][col]).join('');
+
+        const word = this.selectedCells.map(({ row, col }) => this.grid[row][col]).join('');
         const reverseWord = word.split('').reverse().join('');
-        
+
         if (this.words.includes(word) && !this.foundWords.has(word)) {
             this.foundWords.add(word);
             this.markAsFound();
@@ -167,15 +176,15 @@ class WordSearch {
         document.querySelectorAll('.ws-cell').forEach(cell => {
             cell.classList.remove('selected');
         });
-        
-        this.selectedCells.forEach(({row, col}) => {
+
+        this.selectedCells.forEach(({ row, col }) => {
             const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
             if (cell) cell.classList.add('selected');
         });
     }
 
     markAsFound() {
-        this.selectedCells.forEach(({row, col}) => {
+        this.selectedCells.forEach(({ row, col }) => {
             const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
             if (cell) {
                 cell.classList.remove('selected');
@@ -208,7 +217,7 @@ class WordSearch {
 
 // Initialize global instance
 let wordSearchGame;
-window.initWordSearch = function(containerId) {
+window.initWordSearch = function (containerId) {
     wordSearchGame = new WordSearch(containerId);
     wordSearchGame.init();
 };

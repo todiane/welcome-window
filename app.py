@@ -12,6 +12,7 @@ from config import Config
 import models
 from games import sudoku_generator
 from games import wordsearch_generator
+from games import trivia_api
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -192,6 +193,16 @@ def api_sudoku():
     difficulty = request.args.get("difficulty", "medium")
     puzzle = sudoku_generator.generate_sudoku(difficulty)
     return jsonify(puzzle)
+
+
+@app.route("/api/game/trivia")
+def api_trivia():
+    """Get trivia questions from Open Trivia Database"""
+    amount = int(request.args.get("amount", 5))
+    category = request.args.get("category")
+    difficulty = request.args.get("difficulty")
+    questions = trivia_api.get_trivia_questions(amount, category, difficulty)
+    return jsonify({"questions": questions})
 
 
 @app.route("/guestbook", methods=["POST"])
