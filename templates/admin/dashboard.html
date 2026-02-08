@@ -114,12 +114,12 @@
                                     x-model="adminMessage" 
                                     placeholder="Type a message to all visitors..." 
                                     class="flex-1 px-4 py-2 border-2 rounded-lg focus:border-blue-500 focus:outline-none"
-                                    :disabled="Object.keys(activeConnections).length === 0"
+                                    
                                 >
                                 <button 
                                     type="submit" 
                                     class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                                    :disabled="!adminMessage.trim() || Object.keys(activeConnections).length === 0"
+                                    :disabled="!adminMessage.trim()"
                                 >
                                     Send
                                 </button>
@@ -324,6 +324,20 @@ function adminDashboard() {
             this.socket.on('chat_cleared', () => {
                 this.chatMessages = [];
             });
+            // Poll for pending visitors as fallback
+            setInterval(async () => {
+                try {
+                    const response = await fetch('/admin/pending-visitors');
+                    if (response.ok) {
+                        const data = await response.json();
+                        // Update if count changed
+                        if (data.length !== this.pendingCount) {
+                            this.pendingVisitors = data;
+                            this.pendingCount = data.length;
+                        }
+                    }
+                } catch (e) {}
+            }, 3000);
             
             // Request notification permission
             if (Notification.permission === 'default') {

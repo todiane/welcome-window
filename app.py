@@ -252,6 +252,13 @@ def admin_dashboard():
     )
 
 
+@app.route("/admin/pending-visitors")
+@admin_required
+def get_pending_visitors_api():
+    pending = models.get_pending_visitors()
+    return jsonify(pending)
+
+
 @app.route("/admin/status/update", methods=["POST"])
 @admin_required
 def update_status():
@@ -324,6 +331,10 @@ def clear_chat_history():
 
 @socketio.on("connect")
 def handle_connect(auth=None):
+    # Don't track admin connections as visitors
+    if session.get("admin_logged_in"):
+        return
+
     visitor_id = session.get("visitor_id", "unknown")
     visitor_name = session.get("visitor_name", "Anonymous")
 
