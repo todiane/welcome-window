@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify
-from flask_socketio import SocketIO, emit
+from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 import os
 from functools import wraps
@@ -386,6 +386,31 @@ def handle_disconnect():
             },
             room="admin",
         )
+
+
+@socketio.on("join_admin")
+def handle_join_admin():
+    """Admin joins the admin room to receive real-time updates"""
+    join_room("admin")
+
+    # Send current active connections to admin
+    connections_list = [
+        {
+            "sid": sid,
+            "visitor_id": conn["visitor_id"],
+            "visitor_name": conn["visitor_name"],
+            "connected_at": conn["connected_at"],
+        }
+        for sid, conn in active_connections.items()
+    ]
+
+    # Send chat history
+    chat_history = models.get_chat_messages(limit=100)
+
+    emit(
+        "admin_joined",
+        {"active_connections": connections_list, "chat_history": chat_history},
+    )
 
 
 @socketio.on("send_message")
