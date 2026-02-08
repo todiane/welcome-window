@@ -164,6 +164,23 @@ function chatRoom(){
             this.socket.on('chat_cleared', () => {
                 this.messages = [];
             });
+            
+            // Poll for new messages as fallback
+            setInterval(async () => {
+                try {
+                    const response = await fetch('/api/chat/messages');
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.length !== this.messages.length) {
+                            this.messages = data;
+                            this.$nextTick(() => {
+                                const container = document.getElementById('messages');
+                                if (container) container.scrollTop = container.scrollHeight;
+                            });
+                        }
+                    }
+                } catch (e) {}
+            }, 2000);
         },
         
         sendMessage() {

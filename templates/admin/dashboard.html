@@ -184,6 +184,7 @@
                         {% if not msg.is_read %}
                         <button onclick="fetch('/admin/messages/{{ msg.id }}/read',{method:'POST'}).then(()=>window.location.reload())" class="text-xs text-blue-600 mt-2 hover:underline">Mark read</button>
                         {% endif %}
+                        <button onclick="if(confirm('Delete this message?')){fetch('/admin/messages/{{ msg.id }}/delete',{method:'POST'}).then(()=>window.location.reload())}" class="text-xs text-red-600 hover:underline">Delete</button>
                     </div>
                     {% else %}
                     <div class="text-center text-gray-500 py-8">No messages yet</div>
@@ -324,6 +325,22 @@ function adminDashboard() {
             this.socket.on('chat_cleared', () => {
                 this.chatMessages = [];
             });
+                       // Poll for chat messages as fallback
+            setInterval(async () => {
+                try {
+                    const response = await fetch('/admin/chat/messages');
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.length !== this.chatMessages.length) {
+                            this.chatMessages = data;
+                            this.$nextTick(() => {
+                                const container = document.getElementById('admin-messages');
+                                if (container) container.scrollTop = container.scrollHeight;
+                            });
+                        }
+                    }
+                } catch (e) {}
+            }, 2000);
             // Poll for pending visitors as fallback
             setInterval(async () => {
                 try {

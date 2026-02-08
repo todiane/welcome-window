@@ -1,3 +1,8 @@
+import eventlet
+
+eventlet.monkey_patch()
+# ruff: noqa: E402
+
 from flask import Flask, render_template, request, session, redirect, url_for, jsonify
 from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
@@ -10,7 +15,7 @@ from games import wordsearch_generator
 
 app = Flask(__name__)
 app.config.from_object(Config)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading")
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
 
 models.init_db()
 
@@ -259,6 +264,27 @@ def get_pending_visitors_api():
     return jsonify(pending)
 
 
+@app.route("/admin/chat/messages")
+@admin_required
+def get_chat_messages_api():
+    messages = models.get_chat_messages(limit=100)
+    return jsonify(messages)
+
+
+@app.route("/api/chat/messages")
+def get_visitor_chat_messages():
+    visitor_id = session.get("visitor_id")
+    if not visitor_id:
+        return jsonify([])
+    all_messages = models.get_chat_messages(limit=100)
+    filtered = [
+        msg
+        for msg in all_messages
+        if msg.get("visitor_id") == visitor_id or msg["sender"] == "admin"
+    ]
+    return jsonify(filtered)
+
+
 @app.route("/admin/status/update", methods=["POST"])
 @admin_required
 def update_status():
@@ -306,6 +332,16 @@ def disconnect_visitor(visitor_id):
 @admin_required
 def mark_read(message_id):
     models.mark_message_read(message_id)
+    return jsonify({"success": True})
+
+
+@app.route("/admin/messages/<int:message_id>/delete", methods=["POST"])
+@admin_required
+def delete_guestbook_message(message_id):
+    conn = models.get_db()
+    conn.execute("DELETE FROM messages WHERE id = ?", (message_id,))
+    conn.commit()
+    conn.close()
     return jsonify({"success": True})
 
 
@@ -363,13 +399,19 @@ def handle_connect(auth=None):
         room="admin",
     )
 
-    # Send connection confirmation WITHOUT chat history
-    # Chat history should NOT be shared between visitors
+    # Send chat history for this visitor
+    chat_history = models.get_chat_messages(limit=100)
+    visitor_chat = [
+        msg
+        for msg in chat_history
+        if msg.get("visitor_id") == visitor_id or msg["sender"] == "admin"
+    ]
     emit(
         "connection_established",
         {
             "message": "Connected to The Welcome Window",
             "visitor_name": visitor_name,
+            "chat_history": visitor_chat,
         },
     )
 
@@ -466,11 +508,8 @@ def handle_message(data):
         msg_id = models.save_chat_message("visitor", visitor_name, message, visitor_id)
         msg_data["id"] = msg_id
 
-        # Echo back to sender immediately
-        emit("new_message", msg_data)
-
-        # Send to admin room
-        socketio.emit("new_message", msg_data, room="admin")
+        # Broadcast to all (admin + visitors)
+        socketio.emit("new_message", msg_data, namespace="/")
 
 
 @socketio.on("request_game")
