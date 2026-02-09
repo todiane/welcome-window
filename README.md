@@ -2,7 +2,7 @@ Create this file:
 
 **README.md**
 
-```markdown
+
 # The Welcome Window
 
 A customer service portal with real-time chat, visitor management, and interactive games to keep users engaged while they wait for support.
