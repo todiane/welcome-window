@@ -11,6 +11,11 @@ A customer service portal with real-time chat, visitor management, and interacti
 
 The Welcome Window is a Flask-based web application designed for live customer support and service. It provides a professional interface where customers can request access, wait for approval, and chat with support staff in real-time. To improve the waiting experience, visitors can play interactive games (Word Search, Sudoku, Trivia) while they wait for assistance.
 
+## Live Site
+
+Website: [Customer Support Welcome Window](https://welcome.todiane.com)
+
+
 ## Features
 
 ### For Customers/Visitors
@@ -252,5 +257,5 @@ This project is open source and available under the MIT License.
 ---
 
 **The Welcome Window** - Professional live chat support with games to keep customers engaged while they wait.
-```
+
 
