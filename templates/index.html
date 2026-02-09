@@ -45,35 +45,17 @@
                     </div>
                 </template>
                 <template x-if="status !== 'available'">
-                    <button @click="showGuestbook = true" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-xl transition-colors text-lg">💌 Leave a Message</button>
+                    <button @click="showGuestbook = true" class="w-full bg-blue-100 hover:bg-blue-100 text-blue-700 font-bold py-4 px-6 rounded-sm transition-colors text-lg">Scheduled an appointment? Refresh the page if it isn't green. We will be with you shortly.</button>
                 </template>
             </div>
         </div>
         <div class="text-center text-gray-500 text-sm">
-            <p>This is a personal space for connecting with Diane.</p>
-            <p class="mt-1">When available, you can chat, video call, and play simple games together.</p>
+            <p>For Djangify eCommerce Builder documentation click the link below:</p>
+            <a href="https://djangify.com/docs" target="_blank" class="mt-4 hover:text-purple-700 hover:underline">Visit Docs</a>
+            
         </div>
     </div>
-    <div x-show="showGuestbook" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" @click.self="showGuestbook = false">
-        <div class="bg-white rounded-2xl p-8 max-w-md w-full">
-            <h3 class="text-2xl font-bold mb-4">Leave a Message</h3>
-            <form @submit.prevent="submitMessage()">
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Your Name (optional)</label>
-                    <input type="text" x-model="guestbookName" class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none" placeholder="Anonymous">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Message</label>
-                    <textarea x-model="guestbookMessage" rows="4" required class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none" placeholder="Drop by when you get a chance..."></textarea>
-                </div>
-                <div class="flex gap-3">
-                    <button type="submit" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors">Send Message</button>
-                    <button type="button" @click="showGuestbook = false" class="px-6 py-3 border-2 border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
-                </div>
-            </form>
-            <div x-show="messageSent" x-cloak class="mt-4 p-3 bg-green-100 text-green-700 rounded-lg">✓ Message sent! Diane will see it soon.</div>
-        </div>
-    </div>
+  
 </div>
 <script>
 function welcomeWindow() {

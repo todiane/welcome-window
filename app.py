@@ -451,6 +451,11 @@ def handle_disconnect():
             room="admin",
         )
 
+        # Auto-clear chat when last visitor disconnects
+        if len(active_connections) == 0:
+            models.clear_all_chat_messages()
+            socketio.emit("chat_cleared", {}, room="admin")
+
 
 @socketio.on("join_admin")
 def handle_join_admin():
