@@ -7,7 +7,10 @@
                 <h1 class="text-2xl font-bold">Video Chat</h1>
                 <p class="text-sm text-gray-400">{{ visitor_name }}</p>
             </div>
-            <button @click="if(confirm('Leave?')){window.location.href='/'}" class="px-4 py-2 bg-red-600 rounded-lg">Exit</button>
+            <div class="flex gap-2">
+                <a href="/room/chat" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg">Switch to Chat</a>
+                <button @click="if(confirm('Leave?')){window.location.href='/'}" class="px-4 py-2 bg-red-600 rounded-lg">Exit</button>
+            </div>
         </div>
     </div>
     <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -46,10 +49,10 @@
                 </div>
             </div>
             <div class="bg-gray-800 rounded-xl p-6">
-                <h2 class="font-bold mb-4">Games</h2>
+                <h2 class="font-bold mb-4">Documentation</h2>
                 <div class="space-y-2">
-                    <button @click="currentGame='wordsearch'" class="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-left">🔤 Word Search</button>
-                    <button @click="currentGame='sudoku'" class="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-left">🔢 Sudoku</button>
+                    <a href="https://djangify.com/docs" target="_blank" class="px-4 py-3 bg-purple-600 hover:bg-purple-700 rounded-lg text-sm text-center block">Visit Docs</a>
+                    
                 </div>
             </div>
         </div>

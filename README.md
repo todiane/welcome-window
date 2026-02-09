@@ -5,33 +5,32 @@ Create this file:
 ```markdown
 # The Welcome Window
 
-A personal connection portal that signals availability and facilitates spontaneous online connections through text chat, games, and video calls.
+A customer service portal with real-time chat, visitor management, and interactive games to keep users engaged while they wait for support.
 
 ## Overview
 
-The Welcome Window is a Flask-based web application designed to address loneliness and facilitate community building by providing a "warm-up phase" before offline connections. It serves as a digital space where you can signal availability and allow people to connect spontaneously without the pressure of formal group events.
+The Welcome Window is a Flask-based web application designed for live customer support and service. It provides a professional interface where customers can request access, wait for approval, and chat with support staff in real-time. To improve the waiting experience, visitors can play interactive games (Word Search, Sudoku, Trivia) while they wait for assistance.
 
 ## Features
 
-### For Visitors
-- **Real-time availability status** - See when the host is available, busy, or away
-- **Visitor approval system** - Request access with name and email
-- **Two connection modes:**
-  - **Chat & Games** (primary mode) - Text chat with Word Search and Sudoku
-  - **Video Chat** - Jitsi Meet integration with chat sidebar
-- **Guest book** - Leave messages when host is unavailable
+### For Customers/Visitors
+- **Real-time availability status** - See when support is available, busy, or away
+- **Access request system** - Submit name and email to request support. Access is via appointment only
+- **Live chat support** - Real-time text communication with support staff
+- **Interactive games** - Play while waiting for responses or during support sessions. Wordsearch. Sudoku and Trivia
+- **Video option** - Optional Jitsi Meet video chat for visual support
 
-### For Admins
-- **Live chat interface** - Real-time communication with all visitors
-- **Visitor management** - Approve/reject access requests, disconnect visitors
+### For Support Staff/Admins
+- **Live chat dashboard** - Real-time communication with a visitor in one interface
+- **Visitor queue management** - Approve/reject access requests, disconnect users
 - **Availability controls** - Set status (available/busy/away) with custom messages
-- **Analytics dashboard** - Track visits, duration, and engagement
-- **Guest book management** - View and respond to visitor messages
-- **Browser notifications** - Get notified of new visitor requests and messages
+- **Active visitor monitoring** - See who's connected in real-time and disconnect visitors if needed
 
 ### Games
+
 - **Word Search** - Multiple themes (general, Christmas) with customizable grid sizes
 - **Sudoku** - Three difficulty levels (easy, medium, hard) with solution checking
+- **Trivia Quiz** - Customizable categories and difficulty with scoring. Fetch trivia questions from Open Trivia Database
 
 ## Tech Stack
 
@@ -137,22 +136,23 @@ welcome-window/
 
 ## Usage
 
-### For Visitors
+### For Customers
 
-1. Visit the site and check availability status
+1. Visit the support portal and check availability status
 2. If available, click "Request Access" and enter your name and email
-3. Wait for admin approval in the waiting room
-4. Choose between "Chat & Games" or "Video Chat"
-5. Start connecting!
+3. Wait for approval in the waiting room (typically 1-2 minutes)
+4. Once approved, choose "Chat & Games" mode
+5. Chat with support staff and play games while waiting for responses
+6. If unavailable, leave a message in the guest book
 
-### For Admins
+### For Support Staff
 
 1. Log in at `/admin/login`
 2. Set your availability status (Available/Busy/Away)
-3. Approve or reject visitor access requests
-4. Chat with visitors in real-time
-5. Monitor active connections and visitor history
-6. Manage guest book messages
+3. Monitor incoming access requests and approve/reject as needed
+4. Chat with customers in real-time through the dashboard
+5. Disconnect users when support session is complete
+6. Review guest book messages and visitor analytics
 
 ## Database Schema
 
@@ -251,6 +251,6 @@ This project is open source and available under the MIT License.
 
 ---
 
-**The Welcome Window** - Because sometimes we all need a digital space to connect 
+**The Welcome Window** - Professional live chat support with games to keep customers engaged while they wait.
 ```
 

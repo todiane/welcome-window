@@ -14,7 +14,10 @@
                 <h1 class="text-2xl font-bold">The Welcome Window</h1>
                 <p class="text-sm text-gray-400">Connected as {{ visitor_name }}</p>
             </div>
-            <button @click="if(confirm('Leave the chat?')){window.location.href='/'}" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg">Exit</button>
+            <div class="flex gap-2">
+                <a href="/room/video" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg">Switch to Video</a>
+                <button @click="if(confirm('Leave the chat?')){window.location.href='/'}" class="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg">Exit</button>
+            </div>
         </div>
     </div>
     <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
