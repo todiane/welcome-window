@@ -88,7 +88,7 @@ class WordSearch {
                 }
                 .ws-cell:hover { background: #4B5563; }
                 .ws-cell.selected { background: #3B82F6; }
-                .ws-cell.found { background: #10B981; color: white; }
+                .ws-cell.found { background: #3B82F6; color: white; }
                 .word-item { padding: 4px 8px; font-size: 14px; border-radius: 4px; }
                 .word-item.found { color: #10B981; text-decoration: line-through; }
             </style>
@@ -187,10 +187,10 @@ class WordSearch {
         this.selectedCells.forEach(({ row, col }) => {
             const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
             if (cell) {
-                cell.classList.remove('selected');
                 cell.classList.add('found');
             }
         });
+        this.selectedCells = [];
         this.render();
     }
 
