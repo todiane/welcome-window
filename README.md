@@ -1,8 +1,4 @@
-Create this file:
-
-**README.md**
-
-
+![welcome window header](https://github.com/todiane/welcome-window/blob/1086e37169d45363f4e0b7c4542977974dce487c/welcome-window-index.png)
 # The Welcome Window
 
 A customer service portal with real-time chat, visitor management, and interactive games to keep users engaged while they wait for support.
