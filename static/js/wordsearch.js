@@ -116,6 +116,11 @@ class WordSearch {
             this.theme = e.target.value;
             this.newGame();
         });
+
+        // Re-apply found highlights after render
+        this.foundWords.forEach(word => {
+            this.highlightFoundWord(word);
+        });
     }
 
     startSelection(row, col) {
@@ -191,7 +196,71 @@ class WordSearch {
             }
         });
         this.selectedCells = [];
-        this.render();
+        this.updateWordList();
+    }
+
+    updateWordList() {
+        // Just update the word list without re-rendering the whole grid
+        const wordListHtml = this.words.map(word => `
+            <div class="word-item ${this.foundWords.has(word) ? 'found' : ''}" data-word="${word}">
+                ${this.foundWords.has(word) ? '✓' : '•'} ${word}
+            </div>
+        `).join('');
+
+        const wordListContainer = document.querySelector('.word-list > div');
+        if (wordListContainer) {
+            wordListContainer.innerHTML = wordListHtml;
+        }
+
+        // Update the counter
+        const header = document.querySelector('.word-search-header p');
+        if (header) {
+            header.textContent = `${this.foundWords.size} / ${this.words.length} found`;
+        }
+    }
+
+    highlightFoundWord(word) {
+        // Search for the word in the grid and highlight it
+        const directions = [
+            { dr: 0, dc: 1 },  // horizontal
+            { dr: 1, dc: 0 },  // vertical
+            { dr: 1, dc: 1 },  // diagonal down-right
+            { dr: 1, dc: -1 }  // diagonal down-left
+        ];
+
+        for (let row = 0; row < this.grid.length; row++) {
+            for (let col = 0; col < this.grid[row].length; col++) {
+                for (let dir of directions) {
+                    let found = true;
+                    let cells = [];
+
+                    for (let i = 0; i < word.length; i++) {
+                        const r = row + (dir.dr * i);
+                        const c = col + (dir.dc * i);
+
+                        if (r < 0 || r >= this.grid.length || c < 0 || c >= this.grid[0].length) {
+                            found = false;
+                            break;
+                        }
+
+                        if (this.grid[r][c] !== word[i]) {
+                            found = false;
+                            break;
+                        }
+
+                        cells.push({ row: r, col: c });
+                    }
+
+                    if (found) {
+                        cells.forEach(({ row, col }) => {
+                            const cell = document.querySelector(`[data-row="${row}"][data-col="${col}"]`);
+                            if (cell) cell.classList.add('found');
+                        });
+                        return;
+                    }
+                }
+            }
+        }
     }
 
     clearSelection() {
