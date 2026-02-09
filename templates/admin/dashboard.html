@@ -447,20 +447,13 @@ function adminDashboard() {
             }
         },
         
-        async clearChatHistory() {
+async clearChatHistory() {
             if (!confirm('Clear all chat history? This cannot be undone.')) return;
             try {
-                const response = await fetch('/admin/chat/clear', {
-                    method: 'POST'
-                });
-                if (response.ok) {
-                    console.log('Chat history cleared');
-                } else {
-                    alert('Failed to clear chat history');
-                }
+                await fetch('/admin/chat/clear', { method: 'POST' });
+                // Messages will clear via socket event, no need to check response
             } catch (error) {
                 console.error('Error clearing chat:', error);
-                alert('Error clearing chat history');
             }
         }
     }
