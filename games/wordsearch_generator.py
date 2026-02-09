@@ -1,3 +1,4 @@
+# games/wordsearch_generator.py
 import random
 
 
@@ -246,40 +247,59 @@ def generate_wordsearch(theme="general", size=12):
             "SUNSHINE",
         ],
     }
-    words = random.sample(
-        words_lists.get(theme, words_lists["general"]),
-        min(8, len(words_lists.get(theme, words_lists["general"]))),
-    )
-    grid = [
-        [random.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ") for _ in range(size)]
-        for _ in range(size)
-    ]
+    # Start with empty grid filled with spaces
+    grid = [[" " for _ in range(size)] for _ in range(size)]
 
-    for word in words:
+    # Select candidate words
+    candidate_words = random.sample(
+        words_lists.get(theme, words_lists["general"]),
+        min(10, len(words_lists.get(theme, words_lists["general"]))),
+    )
+
+    placed_words = []
+
+    for word in candidate_words:
         placed = False
-        for _ in range(50):
+        for _ in range(100):
             if placed:
                 break
             direction = random.choice(["h", "v"])
-            row, col = random.randint(0, size - 1), random.randint(0, size - 1)
+            row = random.randint(0, size - 1)
+            col = random.randint(0, size - 1)
 
+            # Check if word fits
             if direction == "h" and col + len(word) <= size:
-                if all(
-                    grid[row][col + i] == word[i]
-                    or grid[row][col + i] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                # Check if all cells are empty or match the word
+                can_place = all(
+                    grid[row][col + i] == " " or grid[row][col + i] == word[i]
                     for i in range(len(word))
-                ):
+                )
+                if can_place:
                     for i in range(len(word)):
                         grid[row][col + i] = word[i]
                     placed = True
+
             elif direction == "v" and row + len(word) <= size:
-                if all(
-                    grid[row + i][col] == word[i]
-                    or grid[row + i][col] in "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                # Check if all cells are empty or match the word
+                can_place = all(
+                    grid[row + i][col] == " " or grid[row + i][col] == word[i]
                     for i in range(len(word))
-                ):
+                )
+                if can_place:
                     for i in range(len(word)):
                         grid[row + i][col] = word[i]
                     placed = True
 
-    return {"grid": grid, "words": words}
+        # Only add to word list if successfully placed
+        if placed:
+            placed_words.append(word)
+            if len(placed_words) >= 8:
+                break
+
+    # Fill remaining empty spaces with random letters
+    for i in range(size):
+        for j in range(size):
+            if grid[i][j] == " ":
+                grid[i][j] = random.choice("ABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+    return {"grid": grid, "words": placed_words}
