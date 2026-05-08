@@ -256,6 +256,7 @@ def admin_dashboard():
     visits = models.get_recent_visits(limit=10)
     stats = models.get_visit_stats()
     pending = models.get_pending_visitors()
+    today = datetime.now().strftime("%Y%m%d")  # ADD THIS LINE
     return render_template(
         "admin/dashboard.html",
         status=status,
@@ -265,6 +266,7 @@ def admin_dashboard():
         stats=stats,
         active_count=len(active_connections),
         pending_visitors=pending,
+        today=today,  # ADD THIS LINE
     )
 
 
